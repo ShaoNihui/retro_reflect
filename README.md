@@ -89,10 +89,10 @@ retro_reflect/
 │   └── batch.yaml               # Batch evaluation settings
 │
 ├── outputs/                     # Pre-computed experiment results
-│   ├── final_2000_full_pipeline_v2.csv      # Main benchmark — full pipeline, N=2000
-│   ├── final_2000_no_reflection_v2.csv      # Main benchmark — no reflection, N=2000
-│   ├── final_2000_rule_baseline_v2.csv      # Main benchmark — rule baseline, N=2000
-│   ├── final_2000_plateau_second_pass_v2.csv# Second-pass analysis on score=6 plateau molecules
+│   ├── final_2000_full_pipeline.csv      # Main benchmark — full pipeline, N=2000
+│   ├── final_2000_no_reflection.csv      # Main benchmark — no reflection, N=2000
+│   ├── final_2000_rule_baseline.csv      # Main benchmark — rule baseline, N=2000
+│   ├── final_2000_plateau_second_pass.csv# Second-pass analysis on score=6 plateau molecules
 │   ├── ood_chembl_300_full_pipeline.csv     # OOD ChEMBL — full pipeline, N=300
 │   ├── ood_chembl_300_no_reflection.csv     # OOD ChEMBL — no reflection, N=300
 │   ├── ood_chembl_300_rule_baseline.csv     # OOD ChEMBL — rule baseline, N=300
