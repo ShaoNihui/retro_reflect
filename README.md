@@ -48,20 +48,12 @@ Input SMILES
      FAIL (save best-scoring route)
 ```
 
-Three evaluation modes are compared:
-
-| Mode | LLM calls | Description |
-|---|---|---|
-| `rule_baseline` | 0 | Deterministic DB-lookup solvent swap, no LLM |
-| `no_reflection` | 1 | LLM Planner single-pass only |
-| `full_pipeline` | 2–6 | Planner + Critic + Reflector, up to 3 iterations |
-
 ---
 
 ## Repository Structure
 
 ```
-retro_reflect_submission/
+retro_reflect/
 ├── retro_reflect/               # Core Python package
 │   ├── pipeline.py              # Main orchestrator — runs one molecule through the full loop
 │   └── modules/
@@ -81,12 +73,10 @@ retro_reflect_submission/
 │   ├── uspto_stratified_100.csv # 100-molecule stratified subset
 │   ├── uspto_stratified_2000.csv# Main benchmark: 2000 USPTO molecules (8 reaction classes)
 │   ├── chembl_ood_300.csv       # OOD set 1: 300 ChEMBL drug-like molecules
-│   ├── patent_recent_300.csv    # OOD set 2: 300 recent patent molecules
-│   └── uspto_raw.csv            # Raw source data
+│   └── patent_recent_300.csv    # OOD set 2: 300 recent patent molecules
 │
 ├── experiments/
 │   ├── run_single.py            # Run one molecule in any mode
-│   ├── run_ablation.py          # 3-way ablation on a molecule list (outputs ablation_results.csv)
 │   ├── run_batch.py             # Bulk evaluation on a CSV dataset (full pipeline)
 │   ├── run_no_reflection_v2.py  # Batch run: no-reflection mode
 │   ├── run_rule_baseline_batch.py  # Batch run: rule baseline on USPTO
@@ -96,7 +86,6 @@ retro_reflect_submission/
 │
 ├── configs/
 │   ├── base.yaml                # Shared defaults (model, temperature, thresholds)
-│   ├── ablation.yaml            # Ablation molecule list (Aspirin, Ibuprofen, Nicotine, etc.)
 │   └── batch.yaml               # Batch evaluation settings
 │
 ├── outputs/                     # Pre-computed experiment results
@@ -110,12 +99,12 @@ retro_reflect_submission/
 │   ├── ood_patent_300_full_pipeline.csv     # OOD patent — full pipeline, N=300
 │   ├── ood_patent_300_no_reflection.csv     # OOD patent — no reflection, N=300
 │   ├── ood_patent_300_rule_baseline.csv     # OOD patent — rule baseline, N=300
-│   └── data_summary.md          # Aggregated statistics and figure data used in the paper
+│   └── data_summary.md          # Aggregated statistics and figure data
 │
 ├── tests/
 │   └── test_modules.py          # 32 unit tests (no API key required)
 │
-├── Makefile                     # Convenience commands (see below)
+├── Makefile                     # Convenience commands
 ├── conftest.py                  # pytest sys.path setup
 ├── pyproject.toml
 ├── requirements.txt
@@ -160,14 +149,10 @@ make test
 
 ---
 
-## Reproducing Experiments
-
-All commands are run from the project root with the virtual environment active.
-
-### Smoke test — single molecule
+## Quick Start
 
 ```bash
-# Full pipeline (Aspirin)
+# Full pipeline — single molecule (Aspirin)
 make single SMILES="CC(=O)Oc1ccccc1C(=O)O"
 
 # No-reflection baseline
@@ -175,68 +160,6 @@ python experiments/run_single.py --smiles "CC(=O)Oc1ccccc1C(=O)O" --no-reflectio
 
 # Rule-based baseline (no LLM, no API key needed)
 python experiments/run_single.py --smiles "CC(=O)Oc1ccccc1C(=O)O" --rule-baseline
-```
-
-### Ablation study — Table 2 in paper
-
-Runs all 3 modes on 5 molecules: Aspirin, Ibuprofen, Nicotine, Salicylic acid, Pyrene.
-
-```bash
-make ablation-all
-# Output: outputs/ablation_results.csv
-```
-
-Single-molecule ablation:
-
-```bash
-make ablation SMILES="CC(=O)Oc1ccccc1C(=O)O"
-```
-
-### Main benchmark — N=2000 USPTO — Table 3 in paper
-
-Pre-computed results are provided in `outputs/final_2000_*.csv`.
-To re-run from scratch (estimated cost ~USD 50, ~2–3 hours):
-
-```bash
-# Full pipeline
-python experiments/run_batch.py \
-  --input data/uspto_stratified_2000.csv \
-  --output outputs/my_full_pipeline.csv
-
-# No-reflection baseline
-python experiments/run_no_reflection_v2.py \
-  --input data/uspto_stratified_2000.csv \
-  --output outputs/my_no_reflection.csv
-
-# Rule baseline (no API key needed)
-python experiments/run_rule_baseline_batch.py \
-  --input data/uspto_stratified_2000.csv \
-  --output outputs/my_rule_baseline.csv
-```
-
-### OOD generalization — Table 4 in paper
-
-Pre-computed results are provided in `outputs/ood_*.csv`.
-To re-run:
-
-```bash
-# ChEMBL OOD
-python experiments/run_batch.py \
-  --input data/chembl_ood_300.csv \
-  --output outputs/my_ood_chembl_full.csv
-
-python experiments/run_rule_baseline_ood.py \
-  --input data/chembl_ood_300.csv \
-  --output outputs/my_ood_chembl_rule.csv
-
-# Patent OOD
-python experiments/run_batch.py \
-  --input data/patent_recent_300.csv \
-  --output outputs/my_ood_patent_full.csv
-
-python experiments/run_rule_baseline_patent.py \
-  --input data/patent_recent_300.csv \
-  --output outputs/my_ood_patent_rule.csv
 ```
 
 ---
@@ -287,18 +210,3 @@ make test
 ```
 
 Unit tests cover all modules including the Planner, Critic, Reflector, ValidityCheck, Comparator, and rule baseline. LLM calls are mocked.
-
----
-
-## Estimated Reproduction Cost
-
-| Experiment | N molecules | Est. cost (USD) |
-|---|---|---|
-| Single molecule smoke test | 1 | < 0.05 |
-| Ablation (5 molecules × 3 modes) | 5 | < 0.10 |
-| Main benchmark (full pipeline) | 2000 | ~50 |
-| OOD ChEMBL (full pipeline) | 300 | ~8 |
-| OOD Patent (full pipeline) | 300 | ~8 |
-
-Cost based on GPT-4o pricing at ~USD 0.025/molecule for the full pipeline (2.4 iterations average).
-All pre-computed results are provided in `outputs/` to avoid re-running large experiments.
