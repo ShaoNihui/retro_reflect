@@ -1,6 +1,6 @@
 # Retro-Reflect: A Self-Reflecting LLM Agent for Green Chemistry Retrosynthesis
 
-This repository contains the complete code and pre-computed experiment results for the paper:
+This repository contains the complete code for the paper:
 
 > **Retro-Reflect: Iterative Self-Reflection for Green Solvent Optimization in LLM-Driven Retrosynthesis**
 
@@ -78,37 +78,21 @@ retro_reflect/
 ├── experiments/
 │   ├── run_single.py            # Run one molecule in any mode
 │   ├── run_batch.py             # Bulk evaluation on a CSV dataset (full pipeline)
-│   ├── run_no_reflection_v2.py  # Batch run: no-reflection mode
-│   ├── run_rule_baseline_batch.py  # Batch run: rule baseline on USPTO
+│   ├── run_no_reflection.py     # Batch run: no-reflection mode on USPTO-2000
+│   ├── run_rule_baseline_batch.py  # Batch run: rule baseline on USPTO-2000
 │   ├── run_rule_baseline_ood.py    # Batch run: rule baseline on ChEMBL OOD
 │   ├── run_rule_baseline_patent.py # Batch run: rule baseline on patent OOD
+│   ├── run_ablation.py          # Ablation study: full / no-reflection / rule baseline
 │   └── run_plateau_second_pass.py  # Analysis: second pass on score=6 plateau molecules
 │
 ├── configs/
 │   ├── base.yaml                # Shared defaults (model, temperature, thresholds)
-│   └── batch.yaml               # Batch evaluation settings
-│
-├── outputs/                     # Pre-computed experiment results
-│   ├── final_2000_full_pipeline.csv      # Main benchmark — full pipeline, N=2000
-│   ├── final_2000_no_reflection.csv      # Main benchmark — no reflection, N=2000
-│   ├── final_2000_rule_baseline.csv      # Main benchmark — rule baseline, N=2000
-│   ├── final_2000_plateau_second_pass.csv# Second-pass analysis on score=6 plateau molecules
-│   ├── ood_chembl_300_full_pipeline.csv     # OOD ChEMBL — full pipeline, N=300
-│   ├── ood_chembl_300_no_reflection.csv     # OOD ChEMBL — no reflection, N=300
-│   ├── ood_chembl_300_rule_baseline.csv     # OOD ChEMBL — rule baseline, N=300
-│   ├── ood_patent_300_full_pipeline.csv     # OOD patent — full pipeline, N=300
-│   ├── ood_patent_300_no_reflection.csv     # OOD patent — no reflection, N=300
-│   ├── ood_patent_300_rule_baseline.csv     # OOD patent — rule baseline, N=300
-│   └── data_summary.md          # Aggregated statistics and figure data
-│
-├── tests/
-│   └── test_modules.py          # 32 unit tests (no API key required)
+│   ├── batch.yaml               # Batch evaluation settings
+│   └── ablation.yaml            # Ablation study molecules
 │
 ├── Makefile                     # Convenience commands
-├── conftest.py                  # pytest sys.path setup
 ├── pyproject.toml
 ├── requirements.txt
-├── requirements-dev.txt         # Adds pytest
 └── .env.example                 # API key template — copy to .env and fill in
 ```
 
@@ -125,15 +109,14 @@ source .venv/bin/activate        # Mac/Linux
 # .venv\Scripts\activate         # Windows
 
 # 2. Install dependencies
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 
 # 3. Configure API key
 cp .env.example .env
 # Edit .env and set OPENAI_API_KEY=sk-...
 
-# 4. Verify installation (no API key needed)
-make test
-# Expected: 32 passed
+# 4. Smoke-test (rule-based, no API key needed)
+python experiments/run_single.py --smiles "CC(=O)Oc1ccccc1C(=O)O" --rule-baseline
 ```
 
 ### Key dependencies
@@ -164,6 +147,55 @@ python experiments/run_single.py --smiles "CC(=O)Oc1ccccc1C(=O)O" --rule-baselin
 
 ---
 
+## Reproducing Experiments
+
+All batch scripts write results to `outputs/` (created automatically).
+
+### Main benchmark (USPTO-2000)
+
+```bash
+# Step 1: no-reflection pass (generates Planner routes + log)
+python experiments/run_no_reflection.py
+
+# Step 2: rule baseline (parses routes from Step 1 log — zero LLM calls)
+python experiments/run_rule_baseline_batch.py
+
+# Step 3: full pipeline
+python experiments/run_batch.py --input data/uspto_stratified_2000.csv \
+    --output outputs/final_2000_full_pipeline.csv
+
+# Step 4: plateau analysis (score=6 molecules from Step 3)
+python experiments/run_plateau_second_pass.py \
+    --csv-in outputs/final_2000_full_pipeline.csv \
+    --log-in outputs/final_2000_full_pipeline_log.txt
+```
+
+### OOD benchmarks (ChEMBL-300 / Patent-300)
+
+```bash
+# ChEMBL OOD
+python experiments/run_batch.py --input data/chembl_ood_300.csv \
+    --output outputs/ood_chembl_300_full_pipeline.csv
+python experiments/run_rule_baseline_ood.py
+
+# Patent OOD
+python experiments/run_batch.py --input data/patent_recent_300.csv \
+    --output outputs/ood_patent_300_full_pipeline.csv
+python experiments/run_rule_baseline_patent.py
+```
+
+### Ablation study
+
+```bash
+# Single molecule
+python experiments/run_ablation.py --smiles "CC(=O)Oc1ccccc1C(=O)O"
+
+# All 5 molecules from configs/ablation.yaml
+make ablation-all
+```
+
+---
+
 ## Output CSV Format
 
 All batch output CSVs share the same schema:
@@ -188,7 +220,7 @@ All batch output CSVs share the same schema:
 llm:
   planner_model: "gpt-4o"
   planner_temperature: 0.3   # Higher = more creative routes
-  critic_model: "gpt-4o"
+  critic_model: "claude-sonnet-4-5"
   critic_temperature: 0.0    # Deterministic scoring
 
 pipeline:
@@ -198,15 +230,3 @@ pipeline:
 ```
 
 Parameters can also be set via environment variables in `.env` (see `.env.example`).
-
----
-
-## Running Tests
-
-```bash
-make test
-# or: pytest tests/ -v
-# Expected: 32 passed, 0 failed — no API key required
-```
-
-Unit tests cover all modules including the Planner, Critic, Reflector, ValidityCheck, Comparator, and rule baseline. LLM calls are mocked.
